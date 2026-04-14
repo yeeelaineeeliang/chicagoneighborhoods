@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Card,
   CardContent,
@@ -12,11 +13,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
+interface SavedByUser {
+  id: string;
+  firstName: string | null;
+  imageUrl: string | null;
+}
+
 interface CommunityItem {
   id: number;
   area_number: number;
   name: string;
   save_count: number;
+  saved_by: SavedByUser[];
   neighborhood_stats: {
     crime_count: number;
     affordable_housing_units: number;
@@ -28,6 +36,45 @@ function formatName(name: string) {
     .split(" ")
     .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
     .join(" ");
+}
+
+function UserAvatars({ users }: { users: SavedByUser[] }) {
+  if (users.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-1">
+      <div className="flex -space-x-2">
+        {users.map((user) => (
+          <div
+            key={user.id}
+            className="relative h-8 w-8 overflow-hidden rounded-full border-2 border-white"
+            title={user.firstName || "User"}
+          >
+            {user.imageUrl ? (
+              <Image
+                src={user.imageUrl}
+                alt={user.firstName || "User"}
+                width={32}
+                height={32}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-muted text-xs font-medium">
+                {user.firstName?.[0]?.toUpperCase() || "?"}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <span className="ml-2 text-sm text-muted-foreground">
+        {users
+          .slice(0, 3)
+          .map((u) => u.firstName || "Someone")
+          .join(", ")}
+        {users.length > 3 && ` +${users.length - 3} more`}
+      </span>
+    </div>
+  );
 }
 
 export default function CommunityPage() {
@@ -55,7 +102,7 @@ export default function CommunityPage() {
       {loading ? (
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-40 rounded-lg" />
+            <Skeleton key={i} className="h-48 rounded-lg" />
           ))}
         </div>
       ) : items.length === 0 ? (
@@ -92,11 +139,12 @@ export default function CommunityPage() {
                       Area {item.area_number}
                     </p>
                   </CardHeader>
-                  <CardContent className="space-y-2">
+                  <CardContent className="space-y-3">
                     <p className="text-lg font-semibold">
                       {item.save_count}{" "}
                       {item.save_count === 1 ? "save" : "saves"}
                     </p>
+                    <UserAvatars users={item.saved_by} />
                     {stats && (
                       <div className="flex flex-wrap gap-2">
                         <Badge variant="outline" className="text-sm">
