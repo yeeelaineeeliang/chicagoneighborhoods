@@ -39,7 +39,7 @@ export default function FavoritesPage() {
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState("recent");
+  const [sorts, setSorts] = useState<Set<string>>(new Set(["recent"]));
 
   useEffect(() => {
     fetch("/api/favorites")
@@ -50,6 +50,18 @@ export default function FavoritesPage() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  function toggleSort(key: string) {
+    setSorts((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
 
   const displayed = useMemo(() => {
     let list = favorites;
@@ -64,28 +76,33 @@ export default function FavoritesPage() {
     list = [...list].sort((a, b) => {
       const aStats = a.neighborhoods.neighborhood_stats;
       const bStats = b.neighborhoods.neighborhood_stats;
-      if (sort === "name") {
+
+      if (sorts.size === 0) {
         return a.neighborhoods.name.localeCompare(b.neighborhoods.name);
       }
-      if (sort === "safest") {
-        return (
-          (aStats?.crime_count ?? 0) - (bStats?.crime_count ?? 0)
-        );
+
+      let scoreA = 0;
+      let scoreB = 0;
+
+      if (sorts.has("recent")) {
+        // More recent = lower score (better)
+        scoreA -= new Date(a.saved_at).getTime();
+        scoreB -= new Date(b.saved_at).getTime();
       }
-      if (sort === "housing") {
-        return (
-          (bStats?.affordable_housing_units ?? 0) -
-          (aStats?.affordable_housing_units ?? 0)
-        );
+      if (sorts.has("safest")) {
+        scoreA += aStats?.crime_count ?? 0;
+        scoreB += bStats?.crime_count ?? 0;
       }
-      // recent (default)
-      return (
-        new Date(b.saved_at).getTime() - new Date(a.saved_at).getTime()
-      );
+      if (sorts.has("housing")) {
+        scoreA -= aStats?.affordable_housing_units ?? 0;
+        scoreB -= bStats?.affordable_housing_units ?? 0;
+      }
+
+      return scoreA - scoreB;
     });
 
     return list;
-  }, [favorites, search, sort]);
+  }, [favorites, search, sorts]);
 
   async function removeFavorite(favId: number) {
     await fetch(`/api/favorites/${favId}`, { method: "DELETE" });
@@ -109,33 +126,35 @@ export default function FavoritesPage() {
           />
           <div className="flex flex-wrap gap-2">
             <Button
-              variant={sort === "recent" ? "default" : "outline"}
+              variant={sorts.has("recent") ? "default" : "outline"}
               size="sm"
-              onClick={() => setSort("recent")}
+              onClick={() => toggleSort("recent")}
             >
-              Recent
+              Recent{sorts.has("recent") ? " ✓" : ""}
             </Button>
             <Button
-              variant={sort === "name" ? "default" : "outline"}
+              variant={sorts.has("safest") ? "default" : "outline"}
               size="sm"
-              onClick={() => setSort("name")}
+              onClick={() => toggleSort("safest")}
             >
-              A-Z
+              Safest{sorts.has("safest") ? " ✓" : ""}
             </Button>
             <Button
-              variant={sort === "safest" ? "default" : "outline"}
+              variant={sorts.has("housing") ? "default" : "outline"}
               size="sm"
-              onClick={() => setSort("safest")}
+              onClick={() => toggleSort("housing")}
             >
-              Safest
+              Most Housing{sorts.has("housing") ? " ✓" : ""}
             </Button>
-            <Button
-              variant={sort === "housing" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSort("housing")}
-            >
-              Most Housing
-            </Button>
+            {sorts.size > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSorts(new Set())}
+              >
+                Clear
+              </Button>
+            )}
           </div>
         </div>
       )}

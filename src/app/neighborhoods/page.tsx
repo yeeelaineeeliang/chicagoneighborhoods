@@ -23,7 +23,7 @@ export default function NeighborhoodsPage() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState("name");
+  const [sorts, setSorts] = useState<Set<string>>(new Set());
   const [history, setHistory] = useState<SearchEntry[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -53,6 +53,18 @@ export default function NeighborhoodsPage() {
     [allNeighborhoods]
   );
 
+  function toggleSort(key: string) {
+    setSorts((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
+
   const displayed = useMemo(() => {
     let list = allNeighborhoods;
 
@@ -62,23 +74,29 @@ export default function NeighborhoodsPage() {
     }
 
     list = [...list].sort((a, b) => {
-      if (sort === "crime") {
-        return (
-          (a.neighborhood_stats?.crime_count ?? 0) -
-          (b.neighborhood_stats?.crime_count ?? 0)
-        );
+      if (sorts.size === 0) {
+        return a.name.localeCompare(b.name);
       }
-      if (sort === "housing") {
-        return (
-          (b.neighborhood_stats?.affordable_housing_units ?? 0) -
-          (a.neighborhood_stats?.affordable_housing_units ?? 0)
-        );
+
+      // Combined score: lower = better. Each active sort adds a rank component.
+      let scoreA = 0;
+      let scoreB = 0;
+
+      if (sorts.has("crime")) {
+        scoreA += a.neighborhood_stats?.crime_count ?? 0;
+        scoreB += b.neighborhood_stats?.crime_count ?? 0;
       }
-      return a.name.localeCompare(b.name);
+      if (sorts.has("housing")) {
+        // Invert so more housing = lower score (better)
+        scoreA -= a.neighborhood_stats?.affordable_housing_units ?? 0;
+        scoreB -= b.neighborhood_stats?.affordable_housing_units ?? 0;
+      }
+
+      return scoreA - scoreB;
     });
 
     return list;
-  }, [allNeighborhoods, search, sort]);
+  }, [allNeighborhoods, search, sorts]);
 
   // Save search to history (debounced)
   const saveSearch = useCallback(
@@ -145,26 +163,28 @@ export default function NeighborhoodsPage() {
         />
         <div className="flex flex-wrap gap-2">
           <Button
-            variant={sort === "name" ? "default" : "outline"}
+            variant={sorts.has("crime") ? "default" : "outline"}
             size="sm"
-            onClick={() => setSort("name")}
+            onClick={() => toggleSort("crime")}
           >
-            A-Z
+            Safest{sorts.has("crime") ? " ✓" : ""}
           </Button>
           <Button
-            variant={sort === "crime" ? "default" : "outline"}
+            variant={sorts.has("housing") ? "default" : "outline"}
             size="sm"
-            onClick={() => setSort("crime")}
+            onClick={() => toggleSort("housing")}
           >
-            Safest First
+            Most Housing{sorts.has("housing") ? " ✓" : ""}
           </Button>
-          <Button
-            variant={sort === "housing" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setSort("housing")}
-          >
-            Most Housing
-          </Button>
+          {sorts.size > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSorts(new Set())}
+            >
+              Clear
+            </Button>
+          )}
         </div>
       </div>
 
